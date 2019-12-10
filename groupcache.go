@@ -392,6 +392,7 @@ type cache struct {
 	lru        *lru.Cache
 	nhit, nget int64
 	nevict     int64 // number of evictions
+	expired    int64
 }
 
 func (c *cache) stats() CacheStats {
@@ -403,6 +404,7 @@ func (c *cache) stats() CacheStats {
 		Gets:      c.nget,
 		Hits:      c.nhit,
 		Evictions: c.nevict,
+		Expired:   c.expired,
 	}
 }
 
@@ -414,7 +416,9 @@ func (c *cache) add(key string, value ByteView) {
 			OnEvicted: func(key lru.Key, value interface{}) {
 				val := value.(ByteView)
 				c.nbytes -= int64(len(key.(string))) + int64(val.Len())
-				c.nevict++
+				if !val.Expired() {
+					c.nevict++
+				}
 			},
 		}
 	}
@@ -433,8 +437,16 @@ func (c *cache) get(key string) (value ByteView, ok bool) {
 	if !ok {
 		return
 	}
+	v := vi.(ByteView)
+	if v.Expired() {
+		ok = false
+		c.lru.Remove(key)
+		c.expired++
+		return
+	}
 	c.nhit++
-	return vi.(ByteView), true
+
+	return v, true
 }
 
 func (c *cache) removeOldest() {
@@ -488,4 +500,5 @@ type CacheStats struct {
 	Gets      int64
 	Hits      int64
 	Evictions int64
+	Expired   int64
 }

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"time"
 )
 
 // A ByteView holds an immutable view of bytes.
@@ -33,6 +34,8 @@ type ByteView struct {
 	// If b is non-nil, b is used, else s is used.
 	b []byte
 	s string
+	ttl float64
+	createdAt time.Time
 }
 
 // Len returns the view's length.
@@ -172,4 +175,8 @@ func (v ByteView) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	n = int64(m)
 	return
+}
+
+func (v ByteView) Expired() bool {
+	return time.Now().Sub(v.createdAt).Seconds() > v.ttl
 }
